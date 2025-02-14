@@ -1,11 +1,10 @@
 """Defaults model."""
 
-from typing import Dict, List, Optional
+from typing import Any
 from warnings import warn
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 from openbb_core.app.model.abstract.warning import OpenBBWarning
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Defaults(BaseModel):
@@ -13,7 +12,7 @@ class Defaults(BaseModel):
 
     model_config = ConfigDict(validate_assignment=True, populate_by_name=True)
 
-    commands: Dict[str, Dict[str, Optional[List[str]]]] = Field(
+    commands: dict[str, dict[str, Any]] = Field(
         default_factory=dict,
         alias="routes",
     )
@@ -41,13 +40,14 @@ class Defaults(BaseModel):
                 )
                 key = "routes"
 
-        new_values: Dict[str, Dict[str, Optional[List[str]]]] = {"commands": {}}
+        new_values: dict = {"commands": {}}
         for k, v in values.get(key, {}).items():
             clean_k = k.strip("/").replace("/", ".")
             provider = v.get("provider") if v else None
             if isinstance(provider, str):
                 v["provider"] = [provider]
             new_values["commands"][clean_k] = v
+
         return new_values
 
     def update(self, incoming: "Defaults"):

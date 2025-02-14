@@ -59,13 +59,22 @@
     {
         "packageName": "openbb-cftc",
         "optional": false,
-        "reprName": "Commodity DFutures Trading Commission (CFTC) Public Reporting API",
+        "reprName": "Commodity Futures Trading Commission (CFTC) Public Reporting API",
         "description": "The mission of the Commodity Futures Trading Commission (CFTC) is to promote the integrity,\n    resilience, and vibrancy of the U.S. derivatives markets through sound regulation.",
         "credentials": [
             "cftc_app_token"
         ],
         "website": "https://cftc.gov/",
         "instructions": "Credentials are not required, but your IP address may be subject to throttling limits.\n    API requests made using an application token are not throttled.\n    Create an account here: https://evergreen.data.socrata.com/signup\n    and then generate the app_token by signing in with the credentials\n    here: https://publicreporting.cftc.gov/profile/edit/developer_settings."
+    },
+    {
+        "packageName": "openbb-deribit",
+        "optional": true,
+        "reprName": "Deribit Public Data",
+        "description": "Unofficial Python client for public data published by Deribit.",
+        "credentials": [],
+        "website": "https://deribit.com/",
+        "instructions": "This provider does not require any credentials and is not meant for trading."
     },
     {
         "packageName": "openbb-ecb",
@@ -144,6 +153,14 @@
         "description": "Data.gov is the United States government's open data website.\nIt provides access to datasets published by agencies across the federal government.\nData.gov is intended to provide access to government open data to the public, achieve\nagency missions, drive innovation, fuel economic activity, and uphold the ideals of\nan open and transparent government.",
         "credentials": [],
         "website": "https://data.gov"
+    },
+    {
+        "packageName": "openbb-imf",
+        "optional": false,
+        "reprName": "International Monetary Fund (IMF) Public Data API",
+        "description": "This provider allows you to access International Monetary Fund data through the IMF Public Data API.",
+        "credentials": [],
+        "website": "https://datahelp.imf.org/knowledgebase/articles/667681-using-json-restful-web-service"
     },
     {
         "packageName": "openbb-intrinio",
@@ -268,6 +285,17 @@
             "tradingeconomics_api_key"
         ],
         "website": "https://tradingeconomics.com"
+    },
+    {
+        "packageName": "openbb-us-eia",
+        "optional": false,
+        "reprName": "U.S. Energy Information Administration (EIA) Open Data and API",
+        "description": "The U.S. Energy Information Administration is committed to its free and open data by making it available through an Application Programming Interface (API) and its open data tools. See https://www.eia.gov/opendata/ for more information.",
+        "credentials": [
+            "eia_api_key"
+        ],
+        "website": "https://eia.gov/",
+        "instructions": "Credentials are required for functions calling the EIA's API.\n    Register for a free key here: https://www.eia.gov/opendata/register.php"
     },
     {
         "packageName": "openbb-wsj",

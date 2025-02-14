@@ -2,7 +2,6 @@
 
 # pylint: disable=unused-argument,too-many-arguments,too-many-branches,too-many-locals,too-many-statements
 
-from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
 from openbb_core.provider.utils.errors import EmptyDataError
@@ -28,6 +27,201 @@ MONTH_MAP = {
     "Z": "12",
 }
 
+PREDEFINED_SCREENERS = [
+    "aggressive_small_caps",
+    "day_gainers",
+    "day_losers",
+    "growth_technology_stocks",
+    "most_actives",
+    "most_shorted_stocks",
+    "small_cap_gainers",
+    "undervalued_growth_stocks",
+    "undervalued_large_caps",
+    "conservative_foreign_funds",
+    "high_yield_bond",
+    "portfolio_anchors",
+    "solid_large_growth_funds",
+    "solid_midcap_growth_funds",
+    "top_mutual_funds",
+]
+
+SCREENER_FIELDS = [
+    "symbol",
+    "shortName",
+    "regularMarketPrice",
+    "regularMarketChange",
+    "regularMarketChangePercent",
+    "regularMarketVolume",
+    "regularMarketOpen",
+    "regularMarketDayHigh",
+    "regularMarketDayLow",
+    "regularMarketPreviousClose",
+    "fiftyDayAverage",
+    "twoHundredDayAverage",
+    "fiftyTwoWeekHigh",
+    "fiftyTwoWeekLow",
+    "marketCap",
+    "sharesOutstanding",
+    "epsTrailingTwelveMonths",
+    "forwardPE",
+    "epsForward",
+    "bookValue",
+    "priceToBook",
+    "trailingAnnualDividendYield",
+    "currency",
+    "exchange",
+    "exchangeTimezoneName",
+    "earnings_date",
+]
+
+
+async def get_custom_screener(
+    body: dict[str, Any],
+    limit: Optional[int] = None,
+    region: str = "US",
+):
+    """Get a custom screener."""
+    # pylint: disable=import-outside-toplevel
+    from openbb_core.provider.utils.helpers import (
+        get_requests_session,
+        safe_fromtimestamp,
+    )
+    from pytz import timezone
+    from yfinance.data import YfData
+
+    session = get_requests_session()
+    params_dict = {
+        "corsDomain": "finance.yahoo.com",
+        "formatted": "false",
+        "lang": "en-US",
+        "region": region,
+    }
+    _data = YfData(session=session)
+    results: list = []
+    body = body.copy()
+    response = _data.post(
+        "https://query2.finance.yahoo.com/v1/finance/screener",
+        body=body,
+        user_agent_headers=_data.user_agent_headers,
+        params=params_dict,
+        proxy=session.proxies if session.proxies else None,
+    )
+    response.raise_for_status()
+    res = response.json()["finance"]["result"][0]
+
+    if not res.get("quotes"):
+        raise EmptyDataError("No data found for the predefined screener.")
+
+    results.extend(res["quotes"])
+    total_results = res["total"]
+
+    while len(results) < total_results:
+        if limit is not None and len(results) >= limit:
+            break
+        offset = len(results)
+        body["offset"] = offset
+        response = _data.post(
+            "https://query2.finance.yahoo.com/v1/finance/screener",
+            body=body,
+            user_agent_headers=_data.user_agent_headers,
+            params=params_dict,
+            proxy=session.proxies if session.proxies else None,
+        )
+        if not res:
+            break
+        res = response.json()["finance"]["result"][0]
+        results.extend(res.get("quotes", []))
+
+    output: list = []
+
+    for item in results:
+        tz = item["exchangeTimezoneName"]
+        earnings_date = (
+            safe_fromtimestamp(item["earningsTimestamp"], timezone(tz)).strftime(  # type: ignore
+                "%Y-%m-%d %H:%M:%S%z"
+            )
+            if item.get("earningsTimestamp")
+            else None
+        )
+        item["earnings_date"] = earnings_date
+        result = {k: item.get(k, None) for k in SCREENER_FIELDS}
+        if result.get("regularMarketChange") and result.get("regularMarketVolume"):
+            output.append(result)
+
+    return output[:limit] if limit is not None else output
+
+
+async def get_defined_screener(
+    name: Optional[str] = None,
+    body: Optional[dict[str, Any]] = None,
+    limit: Optional[int] = None,
+):
+    """Get a predefined screener."""
+    # pylint: disable=import-outside-toplevel
+    import yfinance as yf  # noqa
+    from openbb_core.provider.utils.helpers import (
+        get_requests_session,
+        safe_fromtimestamp,
+    )
+    from pytz import timezone
+
+    if name and name not in PREDEFINED_SCREENERS:
+        raise ValueError(
+            f"Invalid predefined screener name: {name}\n    Valid names: {PREDEFINED_SCREENERS}"
+        )
+
+    results: list = []
+    session = get_requests_session()
+
+    offset = 0
+
+    response = yf.screen(
+        name,
+        session=session,
+        proxy=session.proxies if session.proxies else None,
+        size=250,
+        offset=offset,
+    )
+
+    if not response.get("quotes"):
+        raise EmptyDataError("No data found for the predefined screener.")
+
+    total_results = response["total"]
+    results.extend(response["quotes"])
+
+    while len(results) < total_results:
+        if limit is not None and len(results) >= limit:
+            break
+        offset = len(results)
+        res = yf.screen(
+            name,
+            session=session,
+            proxy=session.proxies if session.proxies else None,
+            size=250,
+            offset=offset,
+        )
+        if not res:
+            break
+        results.extend(res.get("quotes", []))
+
+    output: list = []
+
+    for item in results:
+        tz = item["exchangeTimezoneName"]
+        earnings_date = (
+            safe_fromtimestamp(item["earningsTimestamp"], timezone(tz)).strftime(  # type: ignore
+                "%Y-%m-%d %H:%M:%S%z"
+            )
+            if item.get("earningsTimestamp")
+            else None
+        )
+        item["earnings_date"] = earnings_date
+        result = {k: item.get(k, None) for k in SCREENER_FIELDS}
+        if result.get("regularMarketChange") and result.get("regularMarketVolume"):
+            output.append(result)
+
+    return output[:limit] if limit is not None else output
+
 
 def get_expiration_month(symbol: str) -> str:
     """Get the expiration month for a given symbol."""
@@ -45,16 +239,20 @@ def get_futures_data() -> "DataFrame":
     return read_csv(Path(__file__).resolve().parent / "futures.csv")
 
 
-def get_futures_symbols(symbol: str) -> List:
+def get_futures_symbols(symbol: str) -> list:
     """Get the list of futures symbols from the continuation symbol."""
     # pylint: disable=import-outside-toplevel
+    from openbb_core.provider.utils.helpers import get_requests_session
     from yfinance.data import YfData
 
     _symbol = symbol.upper() + "%3DF"
     URL = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{_symbol}"
     params = {"modules": "futuresChain"}
-    response: Dict = YfData(session=None).get_raw_json(url=URL, params=params)
-    futures_symbols: List = []
+    response: Dict = YfData(session=get_requests_session()).get_raw_json(
+        url=URL, params=params
+    )
+    futures_symbols: list = []
+
     if "quoteSummary" in response:
         result = response["quoteSummary"].get("result", [])
         if not result:
@@ -62,6 +260,7 @@ def get_futures_symbols(symbol: str) -> List:
         futures = result[0].get("futuresChain", {})
         if futures:
             futures_symbols = futures.get("futures", [])
+
     return futures_symbols
 
 
@@ -140,7 +339,7 @@ async def get_futures_curve(  # pylint: disable=too-many-return-statements
         DataFrame with futures curve
     """
     # pylint: disable=import-outside-toplevel
-    from datetime import date as dateType  # noqa
+    from datetime import date as dateType, datetime  # noqa
     from dateutil.relativedelta import relativedelta  # noqa
     from pandas import Categorical, DataFrame, DatetimeIndex, to_datetime  # noqa
 
@@ -293,7 +492,7 @@ async def get_futures_curve(  # pylint: disable=too-many-return-statements
     return DataFrame({"price": futures_curve, "expiration": futures_index})
 
 
-def yf_download(
+def yf_download(  # pylint: disable=too-many-positional-arguments
     symbol: str,
     start_date: Optional[Union[str, "date"]] = None,
     end_date: Optional[Union[str, "date"]] = None,
@@ -312,9 +511,11 @@ def yf_download(
 ) -> "DataFrame":
     """Get yFinance OHLC data for any ticker and interval available."""
     # pylint: disable=import-outside-toplevel
-    from dateutil.relativedelta import relativedelta  # noqa
-    import yfinance as yf
+    from datetime import datetime  # noqa
+    from dateutil.relativedelta import relativedelta
+    from openbb_core.provider.utils.helpers import get_requests_session
     from pandas import DataFrame, concat, to_datetime
+    import yfinance as yf
 
     symbol = symbol.upper()
     _start_date = start_date
@@ -336,8 +537,11 @@ def yf_download(
         intraday = True
 
     if adjusted is False:
-        kwargs = dict(auto_adjust=False, back_adjust=False, period=period)
+        kwargs.update(dict(auto_adjust=False, back_adjust=False, period=period))
 
+    session = kwargs.pop("session", None) or get_requests_session()
+    if session.proxies:
+        kwargs["proxy"] = session.proxies
     try:
         data = yf.download(
             tickers=symbol,
@@ -353,6 +557,7 @@ def yf_download(
             rounding=rounding,
             group_by=group_by,
             threads=False,
+            session=session,
             **kwargs,
         )
         if hasattr(data.index, "tz") and data.index.tz is not None:
@@ -362,7 +567,9 @@ def yf_download(
         raise EmptyDataError() from exc
 
     tickers = symbol.split(",")
-    if len(tickers) > 1:
+    if len(tickers) == 1:
+        data = data.get(symbol, DataFrame())
+    elif len(tickers) > 1:
         _data = DataFrame()
         for ticker in tickers:
             temp = data[ticker].copy().dropna(how="all")
@@ -376,32 +583,41 @@ def yf_download(
             index_keys = ["date", "symbol"] if "symbol" in _data.columns else "date"
             _data = _data.set_index(index_keys).sort_index()
             data = _data
-    if not data.empty:
-        data = data.reset_index()
-        data = data.rename(columns={"Date": "date", "Datetime": "date"})
-        data["date"] = data["date"].apply(to_datetime)
-        data = data[data["Open"] > 0]
-        if start_date is not None:
-            data = data[data["date"] >= to_datetime(start_date)]  # type: ignore
-        if (
-            end_date is not None
-            and start_date is not None
-            and to_datetime(end_date) > to_datetime(start_date)  # type: ignore
-        ):
-            data = data[
-                data["date"]
-                <= (
-                    to_datetime(end_date)  # type: ignore
-                    + relativedelta(minutes=719 if intraday is True else 0)
-                )
-            ]
-        if intraday is True:
-            data["date"] = data["date"].dt.strftime("%Y-%m-%d %H:%M:%S")  # type: ignore
-        else:
-            data["date"] = data["date"].dt.strftime("%Y-%m-%d")  # type: ignore
-        if adjusted is False:
-            data = data.drop(columns=["Adj Close"])  # type: ignore
-        data.columns = data.columns.str.lower().str.replace(" ", "_").to_list()  # type: ignore
+
+    if data.empty:
+        raise EmptyDataError()
+
+    data = data.reset_index()
+    data = data.rename(columns={"Date": "date", "Datetime": "date"})
+    data["date"] = data["date"].apply(to_datetime)
+    data = data[data["Open"] > 0]
+    if start_date is not None:
+        data = data[data["date"] >= to_datetime(start_date)]  # type: ignore
+    if (
+        end_date is not None
+        and start_date is not None
+        and to_datetime(end_date) > to_datetime(start_date)  # type: ignore
+    ):
+        data = data[
+            data["date"]
+            <= (
+                to_datetime(end_date)  # type: ignore
+                + relativedelta(minutes=719 if intraday is True else 0)
+            )
+        ]
+    if intraday is True:
+        data["date"] = data["date"].dt.strftime("%Y-%m-%d %H:%M:%S")  # type: ignore
+    else:
+        data["date"] = data["date"].dt.strftime("%Y-%m-%d")  # type: ignore
+    if adjusted is False:
+        data = data.drop(columns=["Adj Close"])  # type: ignore
+    data.columns = data.columns.str.lower().str.replace(" ", "_").to_list()  # type: ignore
+
+    # Remove columns with no information.
+    for col in ["dividends", "capital_gains", "stock_splits"]:
+        if col in data.columns and data[col].sum() == 0:
+            data = data.drop(columns=[col])
+
     return data  # type: ignore
 
 

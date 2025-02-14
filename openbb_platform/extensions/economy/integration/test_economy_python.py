@@ -272,26 +272,13 @@ def test_economy_balance_of_payments(params, obb):
     [
         (
             {
-                "query": None,
-                "is_release": False,
-                "release_id": "15",
-                "offset": 0,
-                "limit": 1000,
-                "filter_variable": "frequency",
-                "filter_value": "Monthly",
-                "tag_names": "nsa",
-                "exclude_tag_names": None,
-                "series_id": None,
-                "provider": "fred",
-            }
-        ),
-        (
-            {
-                "query": "GDP",
-                "is_release": True,
+                "query": "GDP*",
+                "search_type": "series_id",
                 "release_id": None,
                 "offset": 0,
-                "limit": 1000,
+                "limit": 10,
+                "order_by": "observation_end",
+                "sort_order": "desc",
                 "filter_variable": None,
                 "filter_value": None,
                 "tag_names": None,
@@ -303,10 +290,12 @@ def test_economy_balance_of_payments(params, obb):
         (
             {
                 "query": None,
-                "is_release": False,
+                "search_type": "release",
                 "release_id": None,
                 "offset": None,
                 "limit": None,
+                "order_by": "observation_end",
+                "sort_order": "desc",
                 "filter_variable": None,
                 "filter_value": None,
                 "tag_names": None,
@@ -318,10 +307,12 @@ def test_economy_balance_of_payments(params, obb):
         (
             {
                 "query": None,
-                "is_release": False,
+                "search_type": "full_text",
                 "release_id": None,
                 "offset": None,
                 "limit": None,
+                "order_by": "observation_end",
+                "sort_order": "desc",
                 "filter_variable": None,
                 "filter_value": None,
                 "tag_names": None,
@@ -589,6 +580,7 @@ def test_economy_country_profile(params, obb):
     "params",
     [
         ({"provider": "econdb", "use_cache": False}),
+        ({"provider": "imf", "query": "balance sheet;households;debt"}),
     ],
 )
 @pytest.mark.integration
@@ -627,6 +619,26 @@ def test_economy_available_indicators(params, obb):
                 "end_date": "2024-01-01",
                 "use_cache": False,
                 "frequency": "quarter",
+            }
+        ),
+        (
+            {
+                "provider": "imf",
+                "country": "us,uk,jp",
+                "symbol": "gold_reserves",
+                "start_date": "2022-01-01",
+                "end_date": "2023-12-31",
+                "frequency": "annual",
+            }
+        ),
+        (
+            {
+                "provider": "imf",
+                "country": "all",
+                "symbol": "derivative_assets",
+                "start_date": "2022-01-01",
+                "end_date": "2023-12-31",
+                "frequency": "annual",
             }
         ),
     ],
@@ -1109,6 +1121,56 @@ def test_economy_primary_dealer_fails(params, obb):
     params = {p: v for p, v in params.items() if v}
 
     result = obb.economy.primary_dealer_fails(**params)
+    assert result
+    assert isinstance(result, OBBject)
+    assert len(result.results) > 0
+
+
+@parametrize(
+    "params",
+    [
+        (
+            {
+                "provider": "econdb",
+                "start_date": None,
+                "end_date": None,
+            }
+        ),
+    ],
+)
+@pytest.mark.integration
+def test_economy_port_volume(params, obb):
+    """Test the economy port volume endpoint"""
+    params = {p: v for p, v in params.items() if v}
+
+    result = obb.economy.port_volume(**params)
+    assert result
+    assert isinstance(result, OBBject)
+    assert len(result.results) > 0
+
+
+@parametrize(
+    "params",
+    [
+        (
+            {
+                "provider": "imf",
+                "country": "us",
+                "counterpart": "world,eu",
+                "frequency": "annual",
+                "direction": "exports",
+                "start_date": "2020-01-01",
+                "end_date": "2023-01-01",
+            }
+        ),
+    ],
+)
+@pytest.mark.integration
+def test_economy_direction_of_trade(params, obb):
+    """Test the economy direction of trade endpoint"""
+    params = {p: v for p, v in params.items() if v}
+
+    result = obb.economy.direction_of_trade(**params)
     assert result
     assert isinstance(result, OBBject)
     assert len(result.results) > 0

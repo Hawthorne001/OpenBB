@@ -8,6 +8,7 @@ from openbb_fred.models.ameribor import FredAmeriborFetcher
 from openbb_fred.models.balance_of_payments import FredBalanceOfPaymentsFetcher
 from openbb_fred.models.bond_indices import FredBondIndicesFetcher
 from openbb_fred.models.commercial_paper import FREDCommercialPaperFetcher
+from openbb_fred.models.commodity_spot_prices import FredCommoditySpotPricesFetcher
 from openbb_fred.models.consumer_price_index import FREDConsumerPriceIndexFetcher
 from openbb_fred.models.dwpcr_rates import FREDDiscountWindowPrimaryCreditRateFetcher
 from openbb_fred.models.ecb_interest_rates import (
@@ -54,9 +55,6 @@ from openbb_fred.models.tbffr import FREDSelectedTreasuryBillFetcher
 from openbb_fred.models.tips_yields import FredTipsYieldsFetcher
 from openbb_fred.models.tmc import FREDTreasuryConstantMaturityFetcher
 from openbb_fred.models.university_of_michigan import FredUofMichiganFetcher
-from openbb_fred.models.us_yield_curve import (
-    FREDYieldCurveFetcher as FREDUSYieldCurveFetcher,
-)
 from openbb_fred.models.yield_curve import FREDYieldCurveFetcher
 
 test_credentials = UserService().default_user_settings.credentials.model_dump(
@@ -81,16 +79,6 @@ def test_fredcpi_fetcher(credentials=test_credentials):
     params = {"country": "portugal,spain"}
 
     fetcher = FREDConsumerPriceIndexFetcher()
-    result = fetcher.test(params, credentials)
-    assert result is None
-
-
-@pytest.mark.record_http
-def test_fred_us_yield_curve_fetcher(credentials=test_credentials):
-    """Test FREDUSYieldCurveFetcher."""
-    params = {"date": datetime.date(2024, 6, 20)}
-
-    fetcher = FREDUSYieldCurveFetcher()
     result = fetcher.test(params, credentials)
     assert result is None
 
@@ -313,7 +301,12 @@ def test_fred_selected_treasury_bill_fetcher(credentials=test_credentials):
 @pytest.mark.record_http
 def test_fred_search_fetcher(credentials=test_credentials):
     """Test FredSearchFetcher."""
-    params = {"query": "Consumer Price Index"}
+    params = {
+        "query": "leading index",
+        "limit": 20,
+        "tag_names": "gdp",
+        "exclude_tag_names": "oecd",
+    }
 
     fetcher = FredSearchFetcher()
     result = fetcher.test(params, credentials)
@@ -531,5 +524,19 @@ def test_fred_tips_yields_fetcher(credentials=test_credentials):
     }
 
     fetcher = FredTipsYieldsFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fred_commodity_spot_prices_fetcher(credentials=test_credentials):
+    """Test FRED Commodity Spot Prices."""
+    params = {
+        "start_date": datetime.date(2024, 7, 1),
+        "end_date": datetime.date(2024, 7, 10),
+        "commodity": "natural_gas",
+    }
+
+    fetcher = FredCommoditySpotPricesFetcher()
     result = fetcher.test(params, credentials)
     assert result is None
